@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+    <title>Speech To Text</title>
+</head>
+<body class="container pt-5 bg-dark">
+    <div class="mt-4" id="div_language">
+        <h2 class="mb-3 text-light">Select Language</h2>
+        <select class="form-select bg-secondary text-light" id="select_language" onchange="updateCountry()"></select>
+        <select class="form-select bg-secondary text-light mt-2" id="select_dialect"></select>
+    </div>
+    <h2 class="mt-4 text-light">Transcript</h2>
+    <div class="p-3" style="border: 1px solid gray; height: 300px; border-radius: 8px;">
+        <span id="final" class="text-light"></span>
+        <span id="interim" class="text-secondary"></span>
+    </div>
+    <div class="mt-4">
+        <button class="btn btn-success" id="start">Start</button>
+        <button class="btn btn-danger" id="stop">Stop</button>
+        <button class="btn btn-primary mt-2" id="submit">Submit</button>
+        <p id="status" class="lead mt-3 text-light" style="display: none">Listening ...</p>
+    </div>
+    <script src="./language.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.9.0/firebase-app.js";
+        import { getDatabase, ref, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.9.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDRYwrQGwcsxwzNWUCcsBJOOB7xGn6YFEA",
+            authDomain: "speech-recognition-a0277.firebaseapp.com",
+            databaseURL: "https://speech-recognition-a0277-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "speech-recognition-a0277",
+            storageBucket: "speech-recognition-a0277.appspot.com",
+            messagingSenderId: "550243356389",
+            appId: "1:550243356389:web:e36c046065d26226040e0c",
+            measurementId: "G-MKT8J0XKGX"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        function saveToRealtimeDatabase(text) {
+            const transcriptionsRef = ref(db, 'transcriptions');
+            push(transcriptionsRef, {
+                text: text,
+                timestamp: serverTimestamp()
+            })
+            .then(() => {
+                console.log("Document successfully written!");
+            })
+            .catch((error) => {
+                console.error("Error writing document: ", error);
+            });
+        }
+
+        if ("webkitSpeechRecognition" in window) {
+            const speechRecognition = new webkitSpeechRecognition();
+            let final_transcript = "";
+
+            speechRecognition.continuous = true;
+            speechRecognition.interimResults = true;
+
+            function updateLanguage() {
+                let language = select_language.value;
+                let dialect = select_dialect.value;
+                speechRecognition.lang = dialect ? dialect : language;
+            }
+
+            // Set default language
+            updateLanguage();
+
+            speechRecognition.onstart = () => {
+                document.querySelector("#status").style.display = "block";
+                console.log("Speech recognition service has started");
+            };
+
+            speechRecognition.onerror = (event) => {
+                document.querySelector("#status").style.display = "none";
+                console.error('Speech recognition error detected: ' + event.error);
+            };
+
+            speechRecognition.onend = () => {
+                document.querySelector("#status").style.display = "none";
+                console.log("Speech recognition service disconnected");
+            };
+
+            speechRecognition.onresult = (event) => {
+                let interim_transcript = "";
+                console.log("Speech recognition result detected");
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        final_transcript += event.results[i][0].transcript;
+                    } else {
+                        interim_transcript += event.results[i][0].transcript;
+                    }
+                }
+
+                document.querySelector("#final").innerHTML = final_transcript;
+                document.querySelector("#interim").innerHTML = interim_transcript;
+            };
+
+            document.querySelector("#start").addEventListener('click', () => {
+                speechRecognition.start();
+                updateLanguage();
+            });
+
+            document.querySelector("#stop").onclick = () => {
+                speechRecognition.stop();
+                console.log("Speech recognition stopped.");
+            };
+
+            document.querySelector("#submit").onclick = () => {
+                saveToRealtimeDatabase(document.querySelector("#final").innerHTML);
+                console.log("Transcription submitted.");
+            };
+
+            select_language.addEventListener('change', updateLanguage);
+            select_dialect.addEventListener('change', updateLanguage);
+        } else {
+            console.log("Speech recognition not supported in this browser.");
+        }
+    </script>
+</body>
+</html>
